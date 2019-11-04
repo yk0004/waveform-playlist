@@ -1,20 +1,20 @@
-import _defaults from 'lodash.defaults';
+import _defaults from "lodash.defaults";
 
-import h from 'virtual-dom/h';
-import diff from 'virtual-dom/diff';
-import patch from 'virtual-dom/patch';
-import InlineWorker from 'inline-worker';
+import h from "virtual-dom/h";
+import diff from "virtual-dom/diff";
+import patch from "virtual-dom/patch";
+import InlineWorker from "inline-worker";
 
-import { pixelsToSeconds } from './utils/conversions';
-import LoaderFactory from './track/loader/LoaderFactory';
-import ScrollHook from './render/ScrollHook';
-import TimeScale from './TimeScale';
-import Track from './Track';
-import Playout from './Playout';
-import AnnotationList from './annotation/AnnotationList';
+import { pixelsToSeconds } from "./utils/conversions";
+import LoaderFactory from "./track/loader/LoaderFactory";
+import ScrollHook from "./render/ScrollHook";
+import TimeScale from "./TimeScale";
+import Track from "./Track";
+import Playout from "./Playout";
+import AnnotationList from "./annotation/AnnotationList";
 
-import RecorderWorkerFunction from './utils/recorderWorker';
-import ExportWavWorkerFunction from './utils/exportWavWorker';
+import RecorderWorkerFunction from "./utils/recorderWorker";
+import ExportWavWorkerFunction from "./utils/exportWavWorker";
 
 export default class {
   constructor() {
@@ -32,10 +32,10 @@ export default class {
     // whether a user is scrolling the waveform
     this.isScrolling = false;
 
-    this.fadeType = 'logarithmic';
+    this.fadeType = "logarithmic";
     this.masterGain = 1;
     this.annotations = [];
-    this.durationFormat = 'hh:mm:ss.uuu';
+    this.durationFormat = "hh:mm:ss.uuu";
     this.isAutomaticScroll = false;
     this.resetDrawTimer = undefined;
   }
@@ -51,7 +51,7 @@ export default class {
 
     this.mediaRecorder.onstart = () => {
       const track = new Track();
-      track.setName('Recording');
+      track.setName("Recording");
       track.setEnabledStates();
       track.setEventEmitter(this.ee);
 
@@ -62,18 +62,20 @@ export default class {
       this.working = false;
     };
 
-    this.mediaRecorder.ondataavailable = (e) => {
+    this.mediaRecorder.ondataavailable = e => {
       this.chunks.push(e.data);
 
       // throttle peaks calculation
       if (!this.working) {
-        const recording = new Blob(this.chunks, { type: 'audio/ogg; codecs=opus' });
+        const recording = new Blob(this.chunks, {
+          type: "audio/ogg; codecs=opus"
+        });
         const loader = LoaderFactory.createLoader(recording, this.ac);
-        loader.load().then((audioBuffer) => {
+        loader.load().then(audioBuffer => {
           // ask web worker for peaks.
           this.recorderWorker.postMessage({
             samples: audioBuffer.getChannelData(0),
-            samplesPerPixel: this.samplesPerPixel,
+            samplesPerPixel: this.samplesPerPixel
           });
           this.recordingTrack.setCues(0, audioBuffer.duration);
           this.recordingTrack.setBuffer(audioBuffer);
@@ -91,7 +93,7 @@ export default class {
 
     this.recorderWorker = new InlineWorker(RecorderWorkerFunction);
     // use a worker for calculating recording peaks.
-    this.recorderWorker.onmessage = (e) => {
+    this.recorderWorker.onmessage = e => {
       this.recordingTrack.setPeaks(e.data);
       this.working = false;
       this.drawRequest();
@@ -149,7 +151,7 @@ export default class {
       config.controls,
       config.editable,
       config.linkEndpoints,
-      config.isContinuousPlay,
+      config.isContinuousPlay
     );
   }
 
@@ -164,16 +166,16 @@ export default class {
   setUpEventEmitter() {
     const ee = this.ee;
 
-    ee.on('automaticscroll', (val) => {
+    ee.on("automaticscroll", val => {
       this.isAutomaticScroll = val;
     });
 
-    ee.on('durationformat', (format) => {
+    ee.on("durationformat", format => {
       this.durationFormat = format;
       this.drawRequest();
     });
 
-    ee.on('select', (start, end, track) => {
+    ee.on("select", (start, end, track) => {
       if (this.isPlaying()) {
         this.lastSeeked = start;
         this.pausedAt = undefined;
@@ -181,101 +183,103 @@ export default class {
       } else {
         // reset if it was paused.
         this.seek(start, end, track);
-        this.ee.emit('timeupdate', start);
+        this.ee.emit("timeupdate", start);
         this.drawRequest();
       }
     });
 
-    ee.on('startaudiorendering', (type) => {
+    ee.on("startaudiorendering", type => {
       this.startOfflineRender(type);
     });
 
-    ee.on('statechange', (state) => {
+    ee.on("statechange", state => {
       this.setState(state);
       this.drawRequest();
     });
 
-    ee.on('shift', (deltaTime, track) => {
+    ee.on("shift", (deltaTime, track) => {
       track.setStartTime(track.getStartTime() + deltaTime);
       this.adjustDuration();
       this.drawRequest();
     });
 
-    ee.on('record', () => {
+    ee.on("record", () => {
       this.record();
     });
 
-    ee.on('play', (start, end) => {
+    ee.on("play", (start, end) => {
       this.play(start, end);
     });
 
-    ee.on('pause', () => {
+    ee.on("pause", () => {
       this.pause();
     });
 
-    ee.on('stop', () => {
+    ee.on("stop", () => {
       this.stop();
     });
 
-    ee.on('rewind', () => {
+    ee.on("rewind", () => {
       this.rewind();
     });
 
-    ee.on('fastforward', () => {
+    ee.on("fastforward", () => {
       this.fastForward();
     });
 
-    ee.on('clear', () => {
+    ee.on("clear", () => {
       this.clear().then(() => {
         this.drawRequest();
       });
     });
 
-    ee.on('solo', (track) => {
+    ee.on("solo", track => {
       this.soloTrack(track);
       this.adjustTrackPlayout();
       this.drawRequest();
     });
 
-    ee.on('mute', (track) => {
+    ee.on("mute", track => {
       this.muteTrack(track);
       this.adjustTrackPlayout();
       this.drawRequest();
     });
 
-    ee.on('volumechange', (volume, track) => {
+    ee.on("volumechange", (volume, track) => {
       track.setGainLevel(volume / 100);
     });
 
-    ee.on('mastervolumechange', (volume) => {
+    ee.on("mastervolumechange", volume => {
       this.masterGain = volume / 100;
-      this.tracks.forEach((track) => {
+      this.tracks.forEach(track => {
         track.setMasterGainLevel(this.masterGain);
       });
     });
 
-    ee.on('fadein', (duration, track) => {
+    ee.on("fadein", (duration, track) => {
       track.setFadeIn(duration, this.fadeType);
       this.drawRequest();
     });
 
-    ee.on('fadeout', (duration, track) => {
+    ee.on("fadeout", (duration, track) => {
       track.setFadeOut(duration, this.fadeType);
       this.drawRequest();
     });
 
-    ee.on('fadetype', (type) => {
+    ee.on("fadetype", type => {
       this.fadeType = type;
     });
 
-    ee.on('newtrack', (file) => {
-      this.load([{
-        src: file,
-        name: file.name,
-      }]);
+    ee.on("newtrack", file => {
+      this.load([
+        {
+          src: file,
+          name: file.name
+        }
+      ]);
     });
 
-    ee.on('trim', () => {
+    ee.on("trim", () => {
       const track = this.getActiveTrack();
       const timeSelection = this.getTimeSelection();
 
@@ -286,7 +290,7 @@ export default class {
       this.drawRequest();
     });
 
-    ee.on('zoomin', () => {
+    ee.on("zoomin", () => {
       const zoomIndex = Math.max(0, this.zoomIndex - 1);
       const zoom = this.zoomLevels[zoomIndex];
 
@@ -296,8 +300,11 @@ export default class {
       }
     });
 
-    ee.on('zoomout', () => {
-      const zoomIndex = Math.min(this.zoomLevels.length - 1, this.zoomIndex + 1);
+    ee.on("zoomout", () => {
+      const zoomIndex = Math.min(
+        this.zoomLevels.length - 1,
+        this.zoomIndex + 1
+      );
       const zoom = this.zoomLevels[zoomIndex];
 
       if (zoom !== this.samplesPerPixel) {
@@ -306,7 +313,7 @@ export default class {
       }
     });
 
-    ee.on('scroll', () => {
+    ee.on("scroll", () => {
       this.isScrolling = true;
       this.drawRequest();
       clearTimeout(this.scrollTimer);
@@ -317,17 +324,21 @@ export default class {
   }
 
   load(trackList) {
-    const loadPromises = trackList.map((trackInfo) => {
-      const loader = LoaderFactory.createLoader(trackInfo.src, this.ac, this.ee);
+    const loadPromises = trackList.map(trackInfo => {
+      const loader = LoaderFactory.createLoader(
+        trackInfo.src,
+        this.ac,
+        this.ee
+      );
       return loader.load();
     });
 
-    return Promise.all(loadPromises).then((audioBuffers) => {
-      this.ee.emit('audiosourcesloaded');
+    return Promise.all(loadPromises).then(audioBuffers => {
+      this.ee.emit("audiosourcesloaded");
 
       const tracks = audioBuffers.map((audioBuffer, index) => {
         const info = trackList[index];
-        const name = info.name || 'Untitled';
+        const name = info.name || "Untitled";
         const start = info.start || 0;
         const states = info.states || {};
         const fadeIn = info.fadeIn;
@@ -338,7 +349,7 @@ export default class {
         const muted = info.muted || false;
         const soloed = info.soloed || false;
         const selection = info.selected;
-        const peaks = info.peaks || { type: 'WebAudio', mono: this.mono };
+        const peaks = info.peaks || { type: "WebAudio", mono: this.mono };
         const customClass = info.customClass || undefined;
         const waveOutlineColor = info.waveOutlineColor || undefined;
 
@@ -396,7 +407,7 @@ export default class {
       this.adjustDuration();
       this.draw(this.render());
 
-      this.ee.emit('audiosourcesrendered');
+      this.ee.emit("audiosourcesrendered");
     });
   }
 
@@ -421,7 +432,7 @@ export default class {
   setTimeSelection(start = 0, end) {
     this.timeSelection = {
       start,
-      end: (end === undefined) ? start : end,
+      end: end === undefined ? start : end
     };
 
     this.cursor = start;
@@ -433,66 +444,75 @@ export default class {
     }
 
     this.isRendering = true;
-    this.offlineAudioContext = new OfflineAudioContext(2, 44100 * this.duration, 44100);
+    this.offlineAudioContext = new OfflineAudioContext(
+      2,
+      44100 * this.duration,
+      44100
+    );
 
     const currentTime = this.offlineAudioContext.currentTime;
 
-    this.tracks.forEach((track) => {
-      track.setOfflinePlayout(new Playout(this.offlineAudioContext, track.buffer));
+    this.tracks.forEach(track => {
+      track.setOfflinePlayout(
+        new Playout(this.offlineAudioContext, track.buffer)
+      );
       track.schedulePlay(currentTime, 0, 0, {
         shouldPlay: this.shouldTrackPlay(track),
         masterGain: 1,
-        isOffline: true,
+        isOffline: true
       });
     });
 
     /*
       TODO cleanup of different audio playouts handling.
     */
-    this.offlineAudioContext.startRendering().then((audioBuffer) => {
-      if (type === 'buffer') {
-        this.ee.emit('audiorenderingfinished', type, audioBuffer);
-        this.isRendering = false;
-        return;
-      }
-
-      if (type === 'wav') {
-        this.exportWorker.postMessage({
-          command: 'init',
-          config: {
-            sampleRate: 44100,
-          },
-        });
-
-        // callback for `exportWAV`
-        this.exportWorker.onmessage = (e) => {
-          this.ee.emit('audiorenderingfinished', type, e.data);
+    this.offlineAudioContext.oncomplete = function(e) {
+      try {
+        if (type === "buffer") {
+          this.ee.emit("audiorenderingfinished", type, e.renderedBuffer);
           this.isRendering = false;
+          return;
+        }
 
-          // clear out the buffer for next renderings.
+        if (type === "wav") {
           this.exportWorker.postMessage({
-            command: 'clear',
+            command: "init",
+            config: {
+              sampleRate: 44100
+            }
           });
-        };
 
-        // send the channel data from our buffer to the worker
-        this.exportWorker.postMessage({
-          command: 'record',
-          buffer: [
-            audioBuffer.getChannelData(0),
-            audioBuffer.getChannelData(1),
-          ],
-        });
+          // callback for `exportWAV`
+          this.exportWorker.onmessage = e => {
+            this.ee.emit("audiorenderingfinished", type, e.data);
+            this.isRendering = false;
 
-        // ask the worker for a WAV
-        this.exportWorker.postMessage({
-          command: 'exportWAV',
-          type: 'audio/wav',
-        });
+            // clear out the buffer for next renderings.
+            this.exportWorker.postMessage({
+              command: "clear"
+            });
+          };
+
+          // send the channel data from our buffer to the worker
+          this.exportWorker.postMessage({
+            command: "record",
+            buffer: [
+              e.renderedBuffer.getChannelData(0),
+              e.renderedBuffer.getChannelData(1)
+            ]
+          });
+
+          // ask the worker for a WAV
+          this.exportWorker.postMessage({
+            command: "exportWAV",
+            type: "audio/wav"
+          });
+        }
+      } catch (error) {
+        throw error;
       }
-    }).catch((e) => {
-      throw e;
-    });
+    };
+    this.offlineAudioContext.startRendering();
   }
 
   getTimeSelection() {
@@ -502,7 +522,7 @@ export default class {
   setState(state) {
     this.state = state;
 
-    this.tracks.forEach((track) => {
+    this.tracks.forEach(track => {
       track.setState(state);
     });
   }
@@ -522,7 +542,7 @@ export default class {
   setZoom(zoom) {
     this.samplesPerPixel = zoom;
     this.zoomIndex = this.zoomLevels.indexOf(zoom);
-    this.tracks.forEach((track) => {
+    this.tracks.forEach(track => {
       track.calculatePeaks(zoom, this.sampleRate);
     });
   }
@@ -550,7 +570,7 @@ export default class {
   }
 
   adjustTrackPlayout() {
-    this.tracks.forEach((track) => {
+    this.tracks.forEach(track => {
       track.setShouldPlay(this.shouldTrackPlay(track));
     });
   }
@@ -558,7 +578,7 @@ export default class {
   adjustDuration() {
     this.duration = this.tracks.reduce(
       (duration, track) => Math.max(duration, track.getEndTime()),
-      0,
+      0
     );
   }
 
@@ -584,13 +604,13 @@ export default class {
   isPlaying() {
     return this.tracks.reduce(
       (isPlaying, track) => isPlaying || track.isPlaying(),
-      false,
+      false
     );
   }
 
   /*
-  *   returns the current point of time in the playlist in seconds.
-  */
+   *   returns the current point of time in the playlist in seconds.
+   */
   getCurrentTime() {
     const cursorPos = this.lastSeeked || this.pausedAt || this.cursor;
 
@@ -602,17 +622,19 @@ export default class {
   }
 
   setMasterGain(gain) {
-    this.ee.emit('mastervolumechange', gain);
+    this.ee.emit("mastervolumechange", gain);
   }
 
   restartPlayFrom(start, end) {
     this.stopAnimation();
 
-    this.tracks.forEach((editor) => {
+    this.tracks.forEach(editor => {
       editor.scheduleStop();
     });
 
-    return Promise.all(this.playoutPromises).then(this.play.bind(this, start, end));
+    return Promise.all(this.playoutPromises).then(
+      this.play.bind(this, start, end)
+    );
   }
 
   play(startTime, endTime) {
@@ -633,12 +655,14 @@ export default class {
       return this.restartPlayFrom(start, end);
     }
 
-    this.tracks.forEach((track) => {
-      track.setState('cursor');
-      playoutPromises.push(track.schedulePlay(currentTime, start, end, {
-        shouldPlay: this.shouldTrackPlay(track),
-        masterGain: this.masterGain,
-      }));
+    this.tracks.forEach(track => {
+      track.setState("cursor");
+      playoutPromises.push(
+        track.schedulePlay(currentTime, start, end, {
+          shouldPlay: this.shouldTrackPlay(track),
+          masterGain: this.masterGain
+        })
+      );
     });
 
     this.lastPlay = currentTime;
@@ -659,7 +683,7 @@ export default class {
   }
 
   stop() {
-    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+    if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
       this.mediaRecorder.stop();
     }
 
@@ -672,7 +696,7 @@ export default class {
     this.lastSeeked = undefined;
     this.stopAnimation();
 
-    this.tracks.forEach((track) => {
+    this.tracks.forEach(track => {
       track.scheduleStop();
       track.setState(this.getState());
     });
@@ -684,7 +708,7 @@ export default class {
   rewind() {
     return this.stop().then(() => {
       this.scrollLeft = 0;
-      this.ee.emit('select', 0, 0);
+      this.ee.emit("select", 0, 0);
     });
   }
 
@@ -696,7 +720,7 @@ export default class {
         this.scrollLeft = 0;
       }
 
-      this.ee.emit('select', this.duration, this.duration);
+      this.ee.emit("select", this.duration, this.duration);
     });
   }
 
@@ -720,11 +744,13 @@ export default class {
     const playoutPromises = [];
     this.mediaRecorder.start(300);
 
-    this.tracks.forEach((track) => {
-      track.setState('none');
-      playoutPromises.push(track.schedulePlay(this.ac.currentTime, 0, undefined, {
-        shouldPlay: this.shouldTrackPlay(track),
-      }));
+    this.tracks.forEach(track => {
+      track.setState("none");
+      playoutPromises.push(
+        track.schedulePlay(this.ac.currentTime, 0, undefined, {
+          shouldPlay: this.shouldTrackPlay(track)
+        })
+      );
     });
 
     this.playoutPromises = playoutPromises;
@@ -752,16 +778,16 @@ export default class {
       this.setActiveTrack(track || this.tracks[0]);
       this.pausedAt = start;
       this.setTimeSelection(start, end);
-      if (this.getSeekStyle() === 'fill') {
+      if (this.getSeekStyle() === "fill") {
         this.playbackSeconds = start;
       }
     }
   }
 
   /*
-  * Animation function for the playlist.
-  * Keep under 16.7 milliseconds based on a typical screen refresh rate of 60fps.
-  */
+   * Animation function for the playlist.
+   * Keep under 16.7 milliseconds based on a typical screen refresh rate of 60fps.
+   */
   updateEditor(cursor) {
     const currentTime = this.ac.currentTime;
     const selection = this.getTimeSelection();
@@ -770,7 +796,7 @@ export default class {
 
     if (this.isPlaying()) {
       const playbackSeconds = cursorPos + elapsed;
-      this.ee.emit('timeupdate', playbackSeconds);
+      this.ee.emit("timeupdate", playbackSeconds);
       this.animationRequest = window.requestAnimationFrame(() => {
         this.updateEditor(playbackSeconds);
       });
@@ -779,9 +805,11 @@ export default class {
       this.draw(this.render());
       this.lastDraw = currentTime;
     } else {
-      if ((cursorPos + elapsed) >=
-        (this.isSegmentSelection() ? selection.end : this.duration)) {
-        this.ee.emit('finished');
+      if (
+        cursorPos + elapsed >=
+        (this.isSegmentSelection() ? selection.end : this.duration)
+      ) {
+        this.ee.emit("finished");
       }
 
       this.stopAnimation();
@@ -812,7 +840,7 @@ export default class {
     this.viewDuration = pixelsToSeconds(
       this.rootNode.clientWidth - this.controls.width,
       this.samplesPerPixel,
-      this.sampleRate,
+      this.sampleRate
     );
   }
 
@@ -826,7 +854,7 @@ export default class {
       timeSelection: this.getTimeSelection(),
       playlistLength: this.duration,
       playbackSeconds: this.playbackSeconds,
-      colors: this.colors,
+      colors: this.colors
     };
 
     return _defaults(data, defaults);
@@ -848,39 +876,47 @@ export default class {
 
   renderTimeScale() {
     const controlWidth = this.controls.show ? this.controls.width : 0;
-    const timeScale = new TimeScale(this.duration, this.scrollLeft,
-      this.samplesPerPixel, this.sampleRate, controlWidth);
+    const timeScale = new TimeScale(
+      this.duration,
+      this.scrollLeft,
+      this.samplesPerPixel,
+      this.sampleRate,
+      controlWidth
+    );
 
     return timeScale.render();
   }
 
   renderTrackSection() {
     const trackElements = this.tracks.map(track =>
-      track.render(this.getTrackRenderData({
-        isActive: this.isActiveTrack(track),
-        shouldPlay: this.shouldTrackPlay(track),
-        soloed: this.soloedTracks.indexOf(track) > -1,
-        muted: this.mutedTracks.indexOf(track) > -1,
-      })),
+      track.render(
+        this.getTrackRenderData({
+          isActive: this.isActiveTrack(track),
+          shouldPlay: this.shouldTrackPlay(track),
+          soloed: this.soloedTracks.indexOf(track) > -1,
+          muted: this.mutedTracks.indexOf(track) > -1
+        })
+      )
     );
 
-    return h('div.playlist-tracks',
+    return h(
+      "div.playlist-tracks",
       {
         attributes: {
-          style: 'overflow: auto;',
+          style: "overflow: auto;"
         },
-        onscroll: (e) => {
+        onscroll: e => {
           this.scrollLeft = pixelsToSeconds(
             e.target.scrollLeft,
             this.samplesPerPixel,
-            this.sampleRate,
+            this.sampleRate
           );
 
-          this.ee.emit('scroll', this.scrollLeft);
+          this.ee.emit("scroll", this.scrollLeft);
         },
-        hook: new ScrollHook(this),
+        hook: new ScrollHook(this)
       },
-      trackElements,
+      trackElements
     );
   }
 
@@ -897,20 +933,21 @@ export default class {
       containerChildren.push(this.renderAnnotations());
     }
 
-    return h('div.playlist',
+    return h(
+      "div.playlist",
       {
         attributes: {
-          style: 'overflow: hidden; position: relative;',
-        },
+          style: "overflow: hidden; position: relative;"
+        }
       },
-      containerChildren,
+      containerChildren
     );
   }
 
   getInfo() {
     const info = [];
 
-    this.tracks.forEach((track) => {
+    this.tracks.forEach(track => {
       info.push(track.getTrackDetails());
     });
 
